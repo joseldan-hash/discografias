@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Discografía Oficial</title>
+  <style>
+    /* VARIABLES: Colores solicitados */
+    :root{
+      --bg: #0f0f11;     /* Fondo negro oscuro */
+      --card: #171717;   /* Fondo de álbum */
+      --muted: #bdbdbd;  /* Gris para metadatos */
+      --accent: red;     /* El acento principal es ROJO */
+      --text: yellow;    /* El texto principal es AMARILLO */
+    }
+    body{
+      margin:0; font-family:Inter, Arial, sans-serif;
+      background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased;
+      text-align:center; padding:18px;
+    }
+    .container{ max-width:900px; margin:0 auto; }
+    header{ margin-bottom:14px; position: relative; }
+    
+    /* LOGO DEL ENCABEZADO (Carátula o logo) - MÁS VISIBLE */
+    .header-logo{
+      width: 100px; height: 100px; /* Tamaño ligeramente más grande */
+      object-fit: contain; /* Para que la imagen se vea completa */
+      border-radius: 50%; /* Circular */
+      display: block; margin: 0 auto; 
+      margin-bottom: 10px; 
+      border: 3px solid var(--accent); /* Borde ROJO */
+      background-color: #000;
+      box-shadow: 0 4px 12px rgba(255,0,0,0.6); /* Sombra ROJA */
+    }
+    
+    /* IMAGEN PRINCIPAL DEL ARTISTA (Retrato de Wikipedia) */
+    .artist-logo{
+      width:160px; height:160px; object-fit:cover; border-radius:8px;
+      display:block; margin:15px auto; box-shadow:0 6px 18px rgba(255,0,0,0.5); /* Sombra ROJA */
+      border: 3px solid var(--accent); /* Recuadro ROJO */
+      background:linear-gradient(135deg,#222,#111);
+    }
+    
+    h1{ margin:8px 0 4px; font-size:1.4rem; color:var(--accent); } /* Título ROJO */
+    .subtitle{ margin:0; color:var(--muted); font-size:0.95rem; }
+    .searchRow{ margin-top:12px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
+    
+    /* INPUT/RECUADRO DE BÚSQUEDA */
+    input[type="text"]{
+      padding:10px 12px; border-radius:8px; border: 2px solid var(--accent); /* Borde ROJO */
+      width:60%; max-width:420px; font-size:1rem;
+      background-color: var(--card); /* Fondo oscuro del input */
+      color: var(--text); /* Texto AMARILLO */
+    }
+    /* BOTÓN DE BÚSQUEDA */
+    button{
+      padding:10px 14px; border-radius:8px; border:none; cursor:pointer;
+      background:var(--accent); /* Fondo ROJO */
+      color: var(--text); /* Texto AMARILLO */
+      font-weight:600;
+    }
+    .sectionTitle{
+      display:inline-block; margin-top:26px; color:var(--accent); /* Título de sección ROJO */
+      border-bottom:2px solid var(--accent); /* Subrayado ROJO */
+      padding-bottom:6px; font-size:1.05rem;
+    }
+    .grid{ display:grid; grid-template-columns: 1fr; gap:8px; margin-top:12px; }
+    .album{
+      background:var(--card); padding:10px 12px; border-radius:8px; text-align:left;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      border-left: 3px solid var(--accent); /* Línea ROJA a la izquierda del álbum */
+    }
+    .album strong{ display:block; font-size:1rem; margin-bottom:6px; color:var(--text); } /* Texto AMARILLO */
+    .album .meta{ color:var(--muted); font-size:0.9rem; }
+    .muted{ color:var(--muted); font-size:0.95rem; margin-top:8px; }
+    
+    @media(min-width:720px){
+      .grid{ grid-template-columns: 1fr 1fr; }
+      .artist-logo{ width:180px; height:180px; }
+      .header-logo{ width:120px; height:120px; } /* Más grande en pantallas anchas */
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header id="header">
+      <img id="artistHeaderLogo" class="header-logo" alt="Logo del artista" style="display:none"/>
+      
+      <h1 id="artistName">Buscador de Discografía</h1>
+      <p id="artistTag" class="subtitle">Introduce el nombre de una banda o artista</p>
+    </header>
+
+    <div class="searchRow">
+      <input id="artistInput" type="text" placeholder="Ej.: Iron Maiden, Queen..." />
+      <button id="buscarBtn">Buscar</button>
+    </div>
+
+    <img id="artistLogo" class="artist-logo" alt="Imagen del artista" style="display:none"/>
+
+    <div id="resultado"></div>
+  </div>
+
+<script>
+function escapeHtml(s){ return s ? s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : ''; }
+
+document.getElementById('buscarBtn').addEventListener('click', buscar);
+document.getElementById('artistInput').addEventListener('keydown', e => { if(e.key==='Enter') buscar(); });
+
+const USER_AGENT = 'DiscografiaApp/1.0 ( [email protected] )'; 
+
+// Función para obtener una imagen de carátula desde Cover Art Archive usando el Release Group ID
+async function getCoverArtImage(releaseGroupID) {
+    try {
+        // Pide la carátula frontal en 250px de ancho para el Release Group
+        const imageUrl = `https://coverartarchive.org/release-group/${releaseGroupID}/front-250`;
+        // Hacemos una petición 'HEAD' para verificar si la imagen existe sin descargarla completa.
+        const response = await fetch(imageUrl, { method: 'HEAD' });
+        if (response.ok) {
+            return imageUrl;
+        }
+    } catch(e) {
+        console.warn('Error verificando carátula en Cover Art Archive', e);
+    }
+    return ''; // Devuelve cadena vacía si no se encuentra o hay error
+}
+
+async function buscar(){
+  const q = (document.getElementById('artistInput').value || '').trim();
+  const out = document.getElementById('resultado');
+  const logoHeaderImg = document.getElementById('artistHeaderLogo'); 
+  const artistImg = document.getElementById('artistLogo');
+  const artistNameEl = document.getElementById('artistName');
+  const artistTag = document.getElementById('artistTag');
+
+  out.innerHTML = '';
+  logoHeaderImg.style.display = 'none'; 
+  artistImg.style.display = 'none'; 
+  artistNameEl.textContent = 'Buscando...';
+  artistTag.textContent = '';
+
+  if (!q) { artistNameEl.textContent = 'Introduce un nombre.'; return; }
+
+  try {
+    // 1. Buscar Artista (MBID)
+    const ar = await fetch(`https://musicbrainz.org/ws/2/artist?query=${encodeURIComponent(q)}&fmt=json&limit=10`, { headers: { 'User-Agent': USER_AGENT } });
+    const arJ = await ar.json();
+    if (!arJ.artists || arJ.artists.length===0){
+      artistNameEl.textContent = 'No se encontró el artista.';
+      return;
+    }
+    const artist = arJ.artists[0];
+    const artistID = artist.id;
+    artistNameEl.textContent = artist.name;
+    artistTag.textContent = artist.disambiguation || '';
+
+    // 2. IMAGEN 1: IMAGEN PRINCIPAL (WIKIPEDIA)
+    let imageUrl = '';
+    try {
+      const relsRes = await fetch(`https://musicbrainz.org/ws/2/artist/${artistID}?inc=url-rels&fmt=json`, { headers: { 'User-Agent': USER_AGENT } });
+      const rels = await relsRes.json();
+      const relations = rels.relations || [];
+      let wikiTitle = null;
+      for (const r of relations){
+        const type = (r.type || '').toLowerCase();
+        if (type.includes('wikipedia')){
+          const u = r.url && r.url.resource;
+          if (u){
+            const m = u.match(/\/wiki\/(.+)$/);
+            if (m) { wikiTitle = decodeURIComponent(m[1]); break; }
+          }
+        }
+        if (!wikiTitle && type.includes('wikidata') && r.url && r.url.resource){
+          const wd = r.url.resource.split('/').pop();
+          if (wd) {
+            try {
+              const wdRes = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${wd}.json`);
+              const wdJ = await wdRes.json();
+              const entity = wdJ.entities && wdJ.entities[wd];
+              if (entity && entity.sitelinks){
+                const site = entity.sitelinks.eswiki || entity.sitelinks.enwiki;
+                if (site) wikiTitle = site.title;
+              }
+            } catch(e){}
+          }
+        }
+      }
+      if (wikiTitle){
+        const wikiRes = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`);
+        if (wikiRes.ok){
+          const wikiJ = await wikiRes.json();
+          if (wikiJ.originalimage && wikiJ.originalimage.source) imageUrl = wikiJ.originalimage.source;
+          else if (wikiJ.thumbnail && wikiJ.thumbnail.source) imageUrl = wikij.thumbnail.source;
+        } else {
+          const wikiRes2 = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`);
+          if (wikiRes2.ok){
+            const wikiJ2 = await wikiRes2.json();
+            if (wikiJ2.originalimage && wikiJ2.originalimage.source) imageUrl = wikiJ2.originalimage.source;
+            else if (wikiJ2.thumbnail && wikiJ2.thumbnail.source) imageUrl = wikiJ2.thumbnail.source;
+          }
+        }
+      }
+    } catch(e){
+      console.warn('Error buscando imagen principal del artista', e);
+    }
+
+    // 3. DISCOGRAFÍA (Necesitamos el Release Group ID para el logo)
+    const rgRes = await fetch(`https://musicbrainz.org/ws/2/release-group?artist=${artistID}&type=album|ep|single|other&fmt=json&limit=500`, { headers: { 'User-Agent': USER_AGENT } });
+    const rgJ = await rgRes.json();
+    const rgs = rgJ['release-groups'] || [];
+
+    const filtered = rgs.filter(a => {
+      const secondary = (a['secondary-types'] || []).map(s => (s||'').toLowerCase());
+      if (secondary.includes('bootleg') || secondary.includes('pirate') || secondary.includes('compilation')) return false;
+      return true;
+    });
+
+    const estudio = [];
+    const otros = [];
+    let firstReleaseGroupID = null; // Para el logo del encabezado
+
+    filtered.forEach(a => {
+      const primary = (a['primary-type'] || '').toLowerCase();
+      const secondary = (a['secondary-types'] || []).map(s=>s.toLowerCase());
+      const fecha = a['first-release-date'] || '';
+      const item = { title: a.title, date: fecha, types: a['secondary-types'] || [], rgid: a.id };
+
+      // Si es un álbum de estudio y aún no tenemos un Release Group ID para el logo, lo guardamos.
+      if (primary === 'album' && secondary.length === 0 && !firstReleaseGroupID) {
+          firstReleaseGroupID = item.rgid;
+      }
+      
+      if (primary === 'album' && secondary.length === 0) estudio.push(item);
+      else otros.push(item);
+    });
+
+    estudio.sort((x,y)=>(x.date||'').localeCompare(y.date||''));
+    otros.sort((x,y)=>(x.date||'').localeCompare(y.date||''));
+
+    // 4. LOGO DEL ENCABEZADO (AHORA USA EL Release Group ID O FALLBACK)
+    let logoUrl = '';
+    if (firstReleaseGroupID) {
+        logoUrl = await getCoverArtImage(firstReleaseGroupID);
+    }
+    // Fallback: Si no hay carátula de álbum, usa la imagen principal de Wikipedia
+    if (!logoUrl) logoUrl = imageUrl; 
+    
+    // 5. MOSTRAR IMÁGENES
+    const svgPlaceholderImg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'><rect rx='8' width='100%' height='100%' fill='#222'/><text x='50%' y='50%' font-size='36' fill='red' font-family='Arial' text-anchor='middle' alignment-baseline='middle'>IMAGEN NO DISPONIBLE</text></svg>`);
+    const svgLogoPlaceholder = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect rx='50' width='100' height='100' fill='#000'/><text x='50' y='50' font-size='16' fill='red' font-family='Arial' text-anchor='middle' dominant-baseline='middle'>LOGO</text></svg>`);
+
+    // Imagen principal (Retrato)
+    artistImg.src = imageUrl || `data:image/svg+xml;charset=utf-8,${svgImg}`;
+    artistImg.style.display = 'block';
+
+    // Logo del encabezado
+    if (logoUrl){
+      logoHeaderImg.src = logoUrl;
+      logoHeaderImg.style.display = 'block';
+      // Si la imagen de Cover Art falla al cargar, la ocultamos y usamos un placeholder SVG
+      logoHeaderImg.onerror = () => { logoHeaderImg.src = `data:image/svg+xml;charset=utf-8,${svgLogoPlaceholder}`; logoHeaderImg.style.display = 'block'; };
+    } else {
+       logoHeaderImg.src = `data:image/svg+xml;charset=utf-8,${svgLogoPlaceholder}`; // Muestra el placeholder del logo si no hay URL
+       logoHeaderImg.style.display = 'block';
+    }
+
+
+    // 6. MOSTRAR LISTAS DE ÁLBUMES
+    let html = '';
+    html += `<div class="muted" style="margin-top:8px">Resultados: ${estudio.length} álbum(es) de estudio — ${otros.length} otros álbumes oficiales</div>`;
+    
+    html += `<h3 class="sectionTitle">Álbumes de estudio</h3>`;
+    html += estudio.length ? `<div class="grid">${estudio.map(a=>`<div class='album'><strong>${escapeHtml(a.title)}</strong><div class='meta'>${escapeHtml(a.date.slice(0,4))}</div></div>`).join('')}</div>` : `<div class="muted">No hay álbumes de estudio.</div>`;
+    
+    html += `<h3 class="sectionTitle">Álbumes en vivo y otros oficiales</h3>`;
+    html += otros.length ? `<div class="grid">${otros.map(a=>`<div class='album'><strong>${escapeHtml(a.title)}</strong><div class='meta'>${escapeHtml(a.date.slice(0,4))}</div></div>`).join('')}</div>` : `<div class="muted">No hay otros álbumes oficiales.</div>`;
+
+    out.innerHTML = html;
+
+  } catch(err){
+    console.error(err);
+    artistNameEl.textContent = 'Error al buscar';
+    artistTag.textContent = '';
+    logoHeaderImg.style.display = 'none';
+    artistImg.style.display = 'none';
+    out.innerHTML = `<div class="muted">Error al consultar las bases de datos. Revisa tu conexión a Internet.</div>`;
+  }
+}
+</script>
+</body>
+</html>
