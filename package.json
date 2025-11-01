@@ -1,0 +1,16 @@
+{
+  "name": "discografia-musicbrainz",
+  "version": "1.0.0",
+  "description": "Buscador de discografía que usa las APIs públicas de MusicBrainz y Cover Art Archive directamente desde el frontend.",
+  "main": "index.html",
+  "scripts": {
+    "start": "echo 'Este es un proyecto estático. Puedes usar Vercel o GitHub Pages para servir index.html.'"
+  },
+  "keywords": [
+    "musicbrainz",
+    "discografia",
+    "vercel"
+  ],
+  "author": "",
+  "license": "ISC"
+}
